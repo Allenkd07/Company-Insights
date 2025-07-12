@@ -1,0 +1,75 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+.cpython-*
+
+# Virtual environment
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Logs
+*.log
+
+# dotenv
+.env
+.env.*
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# test output
+.tox/
+.pytest_cache/
+.junit.xml
+
+# Scrapy stuff
+.scrapy
+
+# Sphinx docs
+docs/_build/
+
+# PyBuilder
+target/
+
+# build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Selenium WebDriver executables (optional, if not managed via package)
+chromedriver
+chromedriver.exe
+geckodriver
+geckodriver.exe
+
+# Output folders
+output/
+results/
