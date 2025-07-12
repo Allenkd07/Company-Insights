@@ -1,5 +1,4 @@
-```markdown
-# 🌐 Company Insight Scraper – Backend
+# 🌐 Company Insight Scraper
 
 This project is a **backend web scraping service** that accepts either:
 
