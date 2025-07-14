@@ -9,7 +9,7 @@ from fake_useragent import UserAgent
 from bs4.element import Tag
 import requests
 from typing import List
-
+from urllib.parse import urlparse, parse_qs, unquote
 
 
 def extract_emails_and_phones(text: str):
@@ -103,38 +103,116 @@ def scrape_company_data(url: str):
         driver.quit()
 
 
+def extract_real_url(duckduckgo_url: str) -> str:
+    """Extract actual URL from DuckDuckGo redirect link."""
+    parsed = urlparse(duckduckgo_url)
+    qs = parse_qs(parsed.query)
+    return unquote(qs.get("uddg", [""])[0]) if "uddg" in qs else duckduckgo_url
+
+
+def extract_redirect_target(manifest_url: str) -> str:
+    """Extract actual target from redirect links like themanifest.com."""
+    try:
+        parsed = urlparse(manifest_url)
+        query = parse_qs(parsed.query)
+        if "u" in query and query["u"][0]:
+            return unquote(query["u"][0])
+    except Exception:
+        pass
+    return manifest_url  # fallback
+
+
+def extract_external_links_from_article(url: str, limit: int = 5) -> List[str]:
+    """Extract external company links from a blog/article page."""
+    driver = get_driver()
+    try:
+        driver.get(url)
+        time.sleep(2)
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+
+        base_domain = urlparse(url).netloc
+        external_links = set()
+
+        for a in soup.find_all("a", href=True):
+            if isinstance(a, Tag):
+                href = str(a["href"])
+                full_url = urljoin(url, href)
+
+                # 🧼 Clean redirect URLs
+                real_url = extract_redirect_target(full_url)
+
+                # Skip if the real URL is empty or still a redirect
+                if not real_url or "r.themanifest.com" in real_url:
+                    continue
+
+                parsed = urlparse(real_url)
+                domain = parsed.netloc.lower()
+
+                if (
+                    parsed.scheme in ["http", "https"]
+                    and domain != base_domain
+                    and not any(bad in domain for bad in ["linkedin.com", "facebook.com", "twitter.com", "youtube.com", "reddit.com", "instagram.com"])
+                    and any(domain.endswith(ext) for ext in [".com", ".org", ".net", ".io", ".ai"])
+                ):
+                    external_links.add(real_url)
+                    if len(external_links) >= limit:
+                        break
+
+        return list(external_links)
+
+    except Exception as e:
+        print(f"Error scraping article: {url}\n{e}")
+        return []
+
+    finally:
+        driver.quit()
+
+
+
 def discover_company_websites(query: str, limit: int = 5) -> List[str]:
+    """Discover company websites by querying DuckDuckGo and extracting article links."""
     headers = {"User-Agent": "Mozilla/5.0"}
-    search_url = f"https://www.bing.com/search?q={quote(query)}"
-    blacklist = ["linkedin.com", "twitter.com", "youtube.com", "facebook.com", "reddit.com", "medium.com"]
-    allowed_exts = [".com", ".org", ".net", ".io", ".ai"]
+    search_url = f"https://html.duckduckgo.com/html/?q={quote(query)}"
 
     try:
         resp = requests.get(search_url, headers=headers, timeout=5)
+        print("DuckDuckGo status:", resp.status_code)
         soup = BeautifulSoup(resp.text, "html.parser")
-        urls = []
 
-        for a in soup.select("li.b_algo h2 a"):
-            href = a.get("href")
-            if not isinstance(href, str) or not href.startswith("http"):
-                continue
-            domain = urlparse(href).netloc.lower()
-            if any(bad in domain for bad in blacklist):
-                continue
-            if not any(domain.endswith(ext) for ext in allowed_exts):
-                continue
-            if href not in urls:
-                urls.append(href)
-            if len(urls) >= limit:
-                break
-        return urls
+        # Step 1: Get top article URLs from DuckDuckGo
+        article_urls = []
+        for a in soup.select("a[href*='/l/?uddg=']"):
+            raw_href = a.get("href")
+            if isinstance(raw_href, str):
+                real_url = extract_real_url(raw_href)
+                print("🔍 Real URL:", real_url)
+                article_urls.append(real_url)
+                if len(article_urls) >= limit:
+                    break
+
+        # Step 2: Extract external company links from each article
+        final_company_urls = []
+        for article_url in article_urls:
+            external_links = extract_external_links_from_article(article_url, limit=5)
+            final_company_urls.extend(external_links)
+
+        print("Discovered:", final_company_urls)
+        return final_company_urls[:limit]
 
     except Exception as e:
-        print("Search failed:", e)
+        print("DuckDuckGo search failed:", e)
         return []
-    
 
-# Example usage
+
+# Example usage for testing
 if __name__ == "__main__":
-    result = scrape_company_data("https://www.cloudflare.com/")
-    print(result)
+    query = "AI companies in Europe"
+    company_sites = discover_company_websites(query)
+    print("\nFinal company websites:")
+    for site in company_sites:
+        print("🔗", site)
+
+# # Example usage
+# if __name__ == "__main__":
+#     result = scrape_company_data("https://www.cloudflare.com/")
+#     print(result)
